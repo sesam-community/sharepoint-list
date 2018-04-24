@@ -1,9 +1,9 @@
-FROM python:3-alpine
+FROM python:3.6-alpine
 MAINTAINER Ashkan Vahidishams "ashkan.vahidishams@sesam.io"
 COPY ./service /service
 
 RUN apk update
-RUN apk add python-dev libxml2-dev libxslt-dev py-lxml musl-dev gcc
+RUN apk add python-dev libxml2-dev libxslt-dev py-lxml musl-dev openssl-dev libffi-dev gcc
 
 RUN pip install --upgrade pip
 
