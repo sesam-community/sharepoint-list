@@ -23,15 +23,7 @@ auth = HttpNtlmAuth(os.environ.get('username'), os.environ.get('password'))
 
 class DataAccess:
 
-    def __get_list(self, path, args):
-
-        since = args.get("since")
-        if since is not None:
-            logger.info("Fetching data from list: %s, since %s", path, since)
-            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items?$filter=Modified gt datetime'" + since + "'"
-        else:
-            logger.info("Fetching data from list: %s", path)
-            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items"
+    def __get_list(self, args, url):
         if "username" not in os.environ or "password" not in os.environ:
             logger.error("missing username/password")
             yield
@@ -43,7 +35,7 @@ class DataAccess:
             for entity in Dotdictify(json.loads(req.text)).value:
                 yield set_updated(entity, args)
             req = requests.get(next, auth=HttpNtlmAuth(os.environ.get("username"), os.environ.get("password")), headers={'Accept': 'application/json'})
-            next =json.loads(req.text).get('odata.nextLink')
+            next = json.loads(req.text).get('odata.nextLink')
 
         else:
             for entity in Dotdictify(json.loads(req.text)).value:
@@ -53,13 +45,37 @@ class DataAccess:
             logger.error("Unexpected response status code: %d with response text %s" % (req.status_code, req.text))
             raise AssertionError("Unexpected response status code: %d with response text %s" % (req.status_code, req.text))
 
-
     def get_list(self, path, args):
         print('getting list')
-        return self.__get_list(path, args)
+
+        since = args.get("since")
+
+        if since is not None:
+            logger.info("Fetching data from list: %s, since %s", path, since)
+            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items?$filter=" + os.environ.get('modified') + " gt datetime'" + since + "'"
+        else:
+            logger.info("Fetching data from list: %s", path)
+            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items"
+
+        return self.__get_list(args, url)
+
+    def get_system_list(self, path, args):
+        print('getting system list')
+
+        since = args.get("since")
+
+        if since is not None:
+            logger.info("Fetching data from list: %s, since %s", path, since)
+            url = os.environ.get("base_url") + path + "/items?$filter=" + os.environ.get('modified') + " gt datetime'" + since + "'"
+        else:
+            logger.info("Fetching data from list: %s", path)
+            url = os.environ.get("base_url") + path + "/items"
+
+        return self.__get_list(args, url)
 
 
 data_access_layer = DataAccess()
+
 
 def set_updated(entity, args):
     since_path = args.get("since_path")
@@ -83,9 +99,18 @@ def stream_json(clean):
     yield ']'
 
 
-@app.route("/<path:path>", methods=["GET"])
+@app.route("/lists/<path:path>", methods=["GET"])
 def get(path):
     entities = data_access_layer.get_list(path, args=request.args)
+    return Response(
+        stream_json(entities),
+        mimetype='application/json'
+    )
+
+
+@app.route("/<path:path>", methods=["GET"])
+def get(path):
+    entities = data_access_layer.get_system_list(path, args=request.args)
     return Response(
         stream_json(entities),
         mimetype='application/json'
