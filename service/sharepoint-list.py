@@ -99,18 +99,18 @@ def stream_json(clean):
     yield ']'
 
 
-@app.route("/lists/<path:path>", methods=["GET"])
-def get(path):
-    entities = data_access_layer.get_list(path, args=request.args)
+@app.route("/<path:path>", methods=["GET"])
+def get_system(path):
+    entities = data_access_layer.get_system_list(path, args=request.args)
     return Response(
         stream_json(entities),
         mimetype='application/json'
     )
 
 
-@app.route("/<path:path>", methods=["GET"])
+@app.route("/lists/<path:path>", methods=["GET"])
 def get(path):
-    entities = data_access_layer.get_system_list(path, args=request.args)
+    entities = data_access_layer.get_list(path, args=request.args)
     return Response(
         stream_json(entities),
         mimetype='application/json'
