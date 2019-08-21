@@ -25,24 +25,32 @@ class DataAccess:
 
     def __get_list(self, path, args):
 
+        log_string = "Fetching data from list: %s" % path
+        url = os.environ.get("base_url") + path + "/items"
         since = args.get("since")
+
         if since is not None:
-            logger.info("Fetching data from list: %s, since %s", path, since)
-            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items?$filter=Modified gt datetime'" + since + "'"
-        else:
-            logger.info("Fetching data from list: %s", path)
-            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items"
+            log_string += ", since: %s" % since
+            url += "?$filter=Modified gt datetime'" + since + "'"
+
+        logger.info(log_string)
+        logger.debug("URL: %s", url)
+
         if "username" not in os.environ or "password" not in os.environ:
             logger.error("missing username/password")
             yield
 
-        req = requests.get(url, auth=HttpNtlmAuth(os.environ.get("username"),os.environ.get("password")),headers={'Accept' : 'application/json'})
+        req = requests.get(url,
+                           auth=HttpNtlmAuth(os.environ.get("username"), os.environ.get("password")),
+                           headers={'Accept': 'application/json'})
         next = json.loads(req.text).get('odata.nextLink')
 
         while next is not None:
             for entity in Dotdictify(json.loads(req.text)).value:
                 yield set_updated(entity, args)
-            req = requests.get(next, auth=HttpNtlmAuth(os.environ.get("username"), os.environ.get("password")), headers={'Accept': 'application/json'})
+            req = requests.get(next,
+                               auth=HttpNtlmAuth(os.environ.get("username"), os.environ.get("password")),
+                               headers={'Accept': 'application/json'})
             next =json.loads(req.text).get('odata.nextLink')
 
         else:
@@ -53,13 +61,13 @@ class DataAccess:
             logger.error("Unexpected response status code: %d with response text %s" % (req.status_code, req.text))
             raise AssertionError("Unexpected response status code: %d with response text %s" % (req.status_code, req.text))
 
-
     def get_list(self, path, args):
         print('getting list')
         return self.__get_list(path, args)
 
 
 data_access_layer = DataAccess()
+
 
 def set_updated(entity, args):
     since_path = args.get("since_path")
@@ -93,4 +101,4 @@ def get(path):
 
 
 if __name__ == '__main__':
-    app.run(threaded=True, debug=True, host='0.0.0.0', port=os.environ.get('port',5000))
+    app.run(threaded=True, debug=True, host='0.0.0.0', port=os.environ.get('port', 5000))
