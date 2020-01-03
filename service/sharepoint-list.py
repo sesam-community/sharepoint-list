@@ -18,8 +18,8 @@ stdout_handler.setFormatter(logging.Formatter(format_string))
 logger.addHandler(stdout_handler)
 logger.setLevel(logging.DEBUG)
 
-auth = HttpNtlmAuth(os.environ.get('username'), os.environ.get('password'))
-
+data = {"client_id":"{}".format(os.environ.get("client_id")), "client_secret":"{}".format(os.environ.get("client_secret")), "resource":"{}".format(os.environ.get("resource")),"grant_type":"client_credentials"}
+access_token = requests.post(os.environ.get("token_url"), headers={'accept': 'application/x-www-form-urlencoded'}, data=data).json()["access_token"]
 
 class DataAccess:
 
@@ -27,22 +27,38 @@ class DataAccess:
 
         since = args.get("since")
         if since is not None:
-            logger.info("Fetching data from list: %s, since %s", path, since)
-            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items?$filter=Modified gt datetime'" + since + "'"
+            if path == "ForbedringsForslag" or path == "Saksregister":
+                logger.info("Fetching data from list: %s, since %s", path, since)
+                url = os.environ.get("base_url") + "getbytitle('" + path + "')/items?$filter=Modified gt datetime'" + since + "'&$select=*,BEDRECaseOwner/EMail&$expand=BEDRECaseOwner"
+            elif path == "Tiltak" or path == "Kategorisering" or path == "Årsaksanalyse":
+                logger.info("Fetching data from list: %s, since %s", path, since)
+                url = os.environ.get("base_url") + "getbytitle('" + path + "')/items?$filter=Modified gt datetime'" + since + "'&$select=*,BEDREMeasureOwner/EMail&$expand=BEDREMeasureOwner"
+            else:
+                logger.info("Fetching data from list: %s, since %s", path, since)
+                url = os.environ.get("base_url") + "getbytitle('" + path + "')/items?$filter=Modified gt datetime'" + since + "'"
+
         else:
-            logger.info("Fetching data from list: %s", path)
-            url = os.environ.get("base_url") + "getByTitle('" + path + "')/items"
-        if "username" not in os.environ or "password" not in os.environ:
-            logger.error("missing username/password")
+            if path == "ForbedringsForslag" or path == "Saksregister":
+                logger.info("Fetching data from list: %s", path)
+                url = os.environ.get("base_url") + "getbytitle('" + path + "')/items?$select=*,BEDRECaseOwner/EMail&$expand=BEDRECaseOwner"
+            elif path == "Tiltak" or path == "Kategorisering" or path == "Årsaksanalyse":
+                logger.info("Fetching data from list: %s, since %s", path, since)
+                url = os.environ.get("base_url") + "getbytitle('" + path + "')/items?$select=*,BEDREMeasureOwner/EMail&$expand=BEDREMeasureOwner"
+            else:
+                logger.info("Fetching data from list: %s", path)
+                url = os.environ.get("base_url") + "getbytitle('" + path + "')/items"                
+        if "client_secret" not in os.environ or "client_id" not in os.environ:
+            logger.error("missing client_secret/client_id")
             yield
 
-        req = requests.get(url, auth=HttpNtlmAuth(os.environ.get("username"),os.environ.get("password")),headers={'Accept' : 'application/json'})
+        req = requests.get(url, headers={'accept': 'application/json;odata=nometadata', "Authorization": "Bearer {}".format(access_token)})
         next = json.loads(req.text).get('odata.nextLink')
 
         while next is not None:
             for entity in Dotdictify(json.loads(req.text)).value:
                 yield set_updated(entity, args)
-            req = requests.get(next, auth=HttpNtlmAuth(os.environ.get("username"), os.environ.get("password")), headers={'Accept': 'application/json'})
+            req = requests.get(next, headers={'accept': 'application/json;odata=nometadata', "Authorization": "Bearer {}".format(access_token)})
+
             next =json.loads(req.text).get('odata.nextLink')
 
         else:
